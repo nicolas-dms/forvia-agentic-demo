@@ -1,0 +1,13 @@
+# Foundry agent overlay: maps environments to the two Forvia projects.
+# Replace placeholder endpoints with the real project endpoints, e.g.
+# https://<account>.services.ai.azure.com/api/projects/forvia-proj-dev
+defaultEnvironment: dev
+environments:
+  dev:
+    azd:
+      environmentName: dev
+    projectEndpoint: https://<account-dev>.services.ai.azure.com/api/projects/forvia-proj-dev
+  test:
+    azd:
+      environmentName: test
+    projectEndpoint: https://<account-test>.services.ai.azure.com/api/projects/forvia-proj-test

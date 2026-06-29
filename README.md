@@ -8,6 +8,7 @@ This repository contains documentation for the Forvia agentic demo. See the [doc
 
 ## Structure
 
+- `agents/` — Foundry hosted agents for dev (`forvia-proj-dev`) and test (`forvia-proj-test`) environments
 - `docs/` — project documentation
 - `LICENSE` — MIT license
 

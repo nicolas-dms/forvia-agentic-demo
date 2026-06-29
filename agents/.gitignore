@@ -1,0 +1,10 @@
+# azd environments
+.azure/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Node
+node_modules/
