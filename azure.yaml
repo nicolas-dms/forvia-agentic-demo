@@ -1,0 +1,42 @@
+# =============================================================================
+# azure.yaml — Configuration du projet azd (Azure Developer CLI)
+#
+# Décrit le service agent et le déploiement de modèle de façon déclarative,
+# pour des environnements reproductibles (dev / test / prod).
+# `azd deploy` construit le conteneur, provisionne les ressources et publie
+# l'agent en une commande. Structure reprise de la doc officielle de
+# l'extension azd agents Foundry.
+# =============================================================================
+
+requiredVersions:
+  extensions:
+    azure.ai.agents: latest
+
+services:
+  WeatherConciergeAgent:
+    project: src/weather-agent      # dossier du code de l'agent (généré par le toolkit)
+    host: azure.ai.agent
+    language: docker
+    docker:
+      remoteBuild: true
+    config:
+      container:
+        resources:
+          cpu: "1"
+          memory: 2Gi
+        scale:
+          minReplicas: 1
+          maxReplicas: 3
+      deployments:
+        - model:
+            format: OpenAI
+            name: gpt-4o-mini
+            version: "2024-07-18"
+          name: gpt-4o-mini
+          sku:
+            name: GlobalStandard
+            capacity: 10
+
+infra:
+  provider: bicep
+  path: ./infra                     # fichiers Bicep générés par `azd init`

@@ -1,0 +1,95 @@
+# =============================================================================
+# Deploy to Test — CI/CD d'un agent hébergé Microsoft Foundry
+#
+# Déclenché à chaque push sur `main` (ou manuellement). Se connecte à Azure en
+# OIDC (sans secret), déploie l'agent vers le PROJET FOUNDRY DE TEST via azd,
+# affiche le statut de la version, puis lance un smoke-test qui échoue si la
+# réponse est vide.
+#
+# Basé sur le quickstart officiel :
+# learn.microsoft.com/azure/foundry/agents/quickstarts/set-up-cicd-hosted-agent
+# =============================================================================
+name: Deploy to Test
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write        # requis pour l'authentification OIDC
+  contents: read
+
+env:
+  # Chemin racine du code de l'agent (adapter à votre arborescence).
+  AGENT_PROJECT_DIR: .
+  # Environnement azd ciblé = projet de test.
+  AZD_ENV_NAME: test
+  # Prompt de smoke-test : l'agent DOIT renvoyer une réponse non vide.
+  AGENT_TEST_PROMPT: "Hello from CI. Réponds par une courte confirmation que tu es opérationnel."
+
+jobs:
+  deploy-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Azure Developer CLI
+        uses: Azure/setup-azd@v2
+
+      - name: Install azd Foundry extension
+        run: azd ext install microsoft.foundry
+
+      - name: Verify azd Foundry extension
+        run: |
+          set -euo pipefail
+          azd ext list | grep -q "microsoft.foundry"
+          azd ai agent --help > /dev/null
+
+      - name: Azure login with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Configure azd authentication
+        run: |
+          azd config set auth.useAzCliAuth true
+          azd config set defaults.subscription "${{ vars.AZURE_SUBSCRIPTION_ID }}"
+
+      - name: Configure deployment environment
+        working-directory: ${{ env.AGENT_PROJECT_DIR }}
+        run: |
+          set -euo pipefail
+          azd env select "$AZD_ENV_NAME" || azd env new "$AZD_ENV_NAME" --no-prompt
+          azd env set AZURE_SUBSCRIPTION_ID "${{ vars.AZURE_SUBSCRIPTION_ID }}"
+          azd env set AZURE_TENANT_ID "${{ vars.AZURE_TENANT_ID }}"
+          azd env set AZURE_LOCATION "${{ vars.AZURE_LOCATION }}"
+          azd env set FOUNDRY_PROJECT_ENDPOINT "${{ vars.FOUNDRY_PROJECT_ENDPOINT }}"
+          azd env set AZURE_AI_PROJECT_ID "${{ vars.AZURE_AI_PROJECT_ID }}"
+          azd env set AZURE_AI_MODEL_DEPLOYMENT_NAME "${{ vars.AZURE_AI_MODEL_DEPLOYMENT_NAME }}"
+          azd env get-values
+
+      - name: Deploy agent
+        working-directory: ${{ env.AGENT_PROJECT_DIR }}
+        run: azd deploy --no-prompt
+
+      - name: Show agent status
+        working-directory: ${{ env.AGENT_PROJECT_DIR }}
+        run: azd ai agent show --no-prompt
+
+      - name: Test agent (smoke test)
+        working-directory: ${{ env.AGENT_PROJECT_DIR }}
+        run: |
+          set -euo pipefail
+          azd ai agent invoke "$AGENT_TEST_PROMPT" > /tmp/agent-response.txt 2>&1
+          echo "--- Agent response ---"
+          cat /tmp/agent-response.txt
+          echo "--- End agent response ---"
+          if [ ! -s /tmp/agent-response.txt ]; then
+            echo "::error::L'agent a renvoyé une réponse vide."
+            exit 1
+          fi
+          echo "Smoke test passed."
